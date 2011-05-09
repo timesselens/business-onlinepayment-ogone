@@ -2,6 +2,7 @@ use strict;
 use warnings;
 use Test::Most;
 use Business::OnlinePayment;
+use Data::Dumper;
   
 #########################################################################################################
 # setup from ENV
@@ -13,6 +14,8 @@ bail_on_fail;
     ok($ENV{OGONE_PSPID}, "test can only proceed with environment OGONE_PSPID set");
 bail_on_fail; 
     ok($ENV{OGONE_PSWD}, "test can only proceed with environment OGONE_PSWD set");
+
+restore_fail;
 
 my %base_args = (
     PSPID => $ENV{OGONE_PSPID},
@@ -87,11 +90,12 @@ $tx->content(override_base_args_with(card_number=>123456)); eval { $tx->submit()
 
 ## test empty cvc code ..................................................................................
 $tx = new_test_tx();
-$tx->content(override_base_args_with(cvc => 'abc')); eval { $tx->submit() }; # diag(Dumper($tx->http_args));
+$tx->content(override_base_args_with(cvc => 'abc')); eval { $tx->submit() }; #diag(Dumper($tx->http_args));
     is($@, '', "there should have been no warnings");
     is($tx->is_success, 0, "must NOT be successful")
         or diag explain { req => $tx->http_args, res => $tx->result_xml};
     like($tx->error_message, qr/./, "error message must be set"); # testing wrong cvc seems impossible
+    # unlike($tx->error_message, qr/Some of the data entered is incorrect/, "error message must not be like 'Some of the data entered is incorrent'");
     like($tx->result_code, qr/50001111/, "result_code should return 50001111");
 
 
@@ -200,32 +204,14 @@ $tx = new_test_tx();
 
 ## refund partially ......................................................................................
 # FIXME: can only be tested with sleep 86400 :-)
-#$tx = new_test_tx();
-#$tx->content(invoice_number => $invoice_number2, payid => $payid, payidsub => $payidsub, operation => 'RFD', action => 'post authorization', amount => 12.24, map { $_ => $base_args{$_} } (qw/login password PSPID/) ); eval { $tx->submit() }; 
-#is($@, '', "there should have been no warnings");
-#diag(Dumper($tx->http_args));
-#diag(Dumper($tx->result_xml));
-#is($tx->is_success, 1, "must be successful");
-#is($tx->error_message, undef, "error message must be undef");
-#ok($tx->result_code == 0, "result_code should return 0");
-#is($tx->result_xml->{STATUS}, 91, "status must be 91 SAL");
-#like($tx->result_xml->{PAYIDSUB}, qr/^\d+$/, "sub payid must be number");
 #
-#my $payid2 = $tx->result_xml->{PAYID};
-#my $payidsub2 = $tx->result_xml->{PAYIDSUB};
-#$tx = new_test_tx();
-#$tx->content(invoice_number => $invoice_number, payid => $payid2, action => 'query', payidsub => $payidsub2, 
-#             map { $_ => $base_args{$_} } (qw/login PSPID password/)); eval { $tx->submit() }; 
-#
-#is($@, '', "there should have been no warnings");
-#diag(Dumper($tx->http_args));
-#diag(Dumper($tx->result_xml));
-#is($tx->is_success, 1, "must be successful");
-#is($tx->error_message, undef, "error message must be undef");
-#ok($tx->result_code == 0, "result_code should return 0");
-#is($tx->result_xml->{STATUS}, 91, "status must be 91 SAL");
-#is($tx->result_xml->{amount}, 10, "amount must be 10");
-
+# test failing refunds:
+$tx = new_test_tx();
+$tx->content(invoice_number => $invoice_number2, payid => $payid, payidsub => $payidsub, operation => 'RFD', action => 'post authorization', amount => 12.24, map { $_ => $base_args{$_} } (qw/login password PSPID/) ); eval { $tx->submit() }; 
+is($@, '', "there should have been no warnings");
+is($tx->is_success, 0, "must be not successful, it was just transacted and is still in 91 state");
+like($tx->error_message, qr/Operation is not allowed/, "error message must be contain operation not allowed");
+like($tx->error_message, qr/status \(91\)/, "error message must be contain status\(91\)");
 
 ##########################################################################################################
 # full refund
