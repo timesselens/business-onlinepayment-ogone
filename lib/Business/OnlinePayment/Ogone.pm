@@ -117,7 +117,19 @@ sub submit {
         http_accept => 'HTTP_ACCEPT',
         http_user_agent => 'HTTP_USER_AGENT',
 
-
+        # recurrent fields
+        subscription_id => 'SUBSCRIPTION_ID',
+        subscription_orderid => 'SUB_ORDERID',
+        subscription_status => 'SUBSCRIPTION_STATUS',
+        startdate => 'SUB_STARTDATE',
+        enddate => 'SUB_ENDDATE',
+        status => 'STATUS',
+        comment => 'COMMENT',
+        period_unit => 'SUB_PERIOD_UNIT', # 'd', 'ww', 'm' (yes two 'w's) for resp daily weekly monthly
+        period_moment => 'SUB_PERIOD_MOMENT', # Integer, the moment in time on which the payment is (0-7 when period_unit is ww, 1-31 for d, 1-12 for m?)
+        # from their docs: Interval between each occurrence of the subscription payments,
+        # I don't get that, I think it's the number of periods the subscription should run for
+        period_number => 'SUB_PERIOD_NUMBER',
     );
 
     # Only allow max of 2 digits after comma as we need to int ( $amount * 100 ) for Ogone
@@ -135,9 +147,14 @@ sub submit {
     $self->{_content}->{operation}  ||= 'RES' if $self->{_content}->{action} =~ m/authorization only/;
     $self->{_content}->{operation}  ||= 'SAL' if $self->{_content}->{action} =~ m/normal authorization/;
     $self->{_content}->{operation}  ||= 'SAS' if $self->{_content}->{action} =~ m/post authorization/;
+    #$self->{_content}->{operation}  ||= 'SAS' if $self->{_content}->{action} =~ m/recurrent authorization/;
 
-    # Default ECI is SSL e-commerce (7)
-    $self->{_content}->{eci}        ||= 7;
+    # Default ECI is SSL e-commerce (7) or Recurring with e-commerce (9) if subscription_id exists
+    $self->{_content}->{eci}        ||= $self->{_content}->{subscription_id} ? 9 : 7;
+
+    # Set SUB_AMOUNT instead of amount if we request anything with a subscription_id
+    #$self->{_content}->{SUB_AMOUNT} ||= $self->{_content}->{amount} if $self->{_content}->{action} =~ m/recurrent authorization/;
+    #$self->{_content}->{SUB_ORDERID} ||= $self->{_content}->{invoice_number} if $self->{_content}->{action} =~ m/recurrent authorization/;
 
     # Remap the fields to their Ogone-API counterparts ie: cvc => CVC
     $self->remap_fields(%ogone_api_args);
@@ -148,6 +165,7 @@ sub submit {
     my @args_basic  = (qw/login password PSPID action/);
     my @args_ccard  = (qw/card_number expiration cvc/);
     my @args_alias  = (qw/alias cvc/);
+    my @args_recur  = (@args_basic, qw/subscription_id subscription_orderid invoice_number amount currency startdate enddate period_unit period_moment period_number/), 
     my @args_new    = (@args_basic, qw/invoice_number amount currency/, $self->{_content}->{card_number} ? @args_ccard : @args_alias);
     my @args_post   = (@args_basic, qw/invoice_number/);
     my @query       = (@args_basic, qw/invoice_number/);
@@ -157,7 +175,8 @@ sub submit {
         qr/normal authorization/i    => \@args_new,
         qr/authorization only/i      => \@args_new,
         qr/post authorization/i      => \@args_post,
-        qr/query/i                   => \@query
+        qr/query/i                   => \@query,
+        qr/recurrent authorization/i => \@args_recur
     );
 
     # Compile a list of required arguments
@@ -165,7 +184,7 @@ sub submit {
                 grep { $self->{_content}->{action} =~ $_ }      # compare action input against regex key
                 keys %action_arguments;                         # extract regular expressions
 
-    croak 'unable to determine HTTP POST @args, is the action parameter one of ( authorization only | normal authorization | post authorization | query )' unless @args;
+    croak 'unable to determine HTTP POST @args, is the action parameter one of ( authorization only | normal authorization | post authorization | query | recurrent authorization )' unless @args;
 
     # Enforce the field requirements by calling parent
     my @undefs = grep { ! defined $self->{_content}->{$_} } @args;
@@ -188,6 +207,10 @@ sub submit {
 
     # Ogone accepts the amount as 100 fold in integer form.
     $http_req_args{amount} = int(100 * $http_req_args{amount}) if exists $http_req_args{amount};
+
+    # XXX: FIXME: Switch amount for SUB_AMOUNT if there exits a subscroption_id key
+    $http_req_args{SUB_AMOUNT} = delete $http_req_args{amount} if $self->{_content}->{action} =~ m/recurrent authorization/;
+    $http_req_args{SUB_ORDERID} = $http_req_args{orderID} if $self->{_content}->{action} =~ m/recurrent authorization/;
    
     # Calculate sha1 by default, but has to be enabled in the Ogone backend to have any effect
     my ($sha_type)  = ($self->{_content}->{sha_type} =~ m/^(1|256|512)$/);
@@ -206,6 +229,7 @@ sub submit {
     my %action_file = (
         qr/normal authorization/i  => 'orderdirect.asp',
         qr/authorization only/i    => 'orderdirect.asp',
+        qr/recurrent authorization/i    => 'orderdirect.asp',
         qr/post authorization/i    => 'maintenancedirect.asp',
         qr/query/i                 => 'querydirect.asp',
     );
@@ -215,7 +239,7 @@ sub submit {
                       grep { $self->{_content}->{action} =~ $_ }
                       keys %action_file;
 
-    croak 'unable to determine URI path, is the action parameter one of ( authorization only | normal authorization | post authorization | query )' unless $uri_file;
+    croak 'unable to determine URI path, is the action parameter one of ( authorization only | normal authorization | post authorization | query | recueent authorization)' unless $uri_file;
     
     # Construct the path to be used in https_post
     $self->{path} = '/ncol/'.$uri_dir.'/'.$uri_file;
@@ -234,7 +258,8 @@ sub submit {
     # Store the result xml for later inspection
     $self->result_xml($xml);
 
-    croak 'Ogone refused SHA digest' if $xml->{NCERRORPLUS} =~ m#^unknown order/1/s#;
+    # XXX: FIXME
+    #croak 'Ogone refused SHA digest' if $xml->{NCERRORPLUS} =~ m#^unknown order/1/s#;
 
     # Call is_success() with either a true or false value, indicating if the transaction was successful or not.
     if ( $response_code =~ m/^200/ ) {
@@ -625,9 +650,9 @@ code as a reference to what exactly is required depending on the parameters.
 To test this module you will need to set your credentials in the environment. Put the following in a file in your hoe directory e.g. F<~/.ogone>
 The password is not the same as the PSPID password, you will need to enter the API users' password.
 
-    OGONE_PSPID=bob
-    OGONE_USERID=bob_api
-    OGONE_PSWD=foobar
+    export OGONE_PSPID=bob
+    export OGONE_USERID=bob_api
+    export OGONE_PSWD=foobar
     
 Limit access to the F<~/.ogone> file
 
