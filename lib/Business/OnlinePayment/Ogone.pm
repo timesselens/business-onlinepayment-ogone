@@ -9,8 +9,8 @@ use Digest::SHA qw/sha1_hex sha256_hex sha512_hex/;
 use MIME::Base64;
 
 # ABSTRACT: Online payment processing via Ogone
-our $VERSION = 0.01;
-our $API_VERSION = 3.5;
+our $VERSION = 0.2;
+our $API_VERSION = 4.9
 
 # Ogone config defaults and info ######################################################################################
 
@@ -123,13 +123,10 @@ sub submit {
         subscription_status => 'SUBSCRIPTION_STATUS',
         startdate => 'SUB_STARTDATE',
         enddate => 'SUB_ENDDATE',
-        status => 'STATUS',
-        comment => 'COMMENT',
+        status => 'SUB_STATUS',
         period_unit => 'SUB_PERIOD_UNIT', # 'd', 'ww', 'm' (yes two 'w's) for resp daily weekly monthly
         period_moment => 'SUB_PERIOD_MOMENT', # Integer, the moment in time on which the payment is (0-7 when period_unit is ww, 1-31 for d, 1-12 for m?)
-        # from their docs: Interval between each occurrence of the subscription payments,
-        # I don't get that, I think it's the number of periods the subscription should run for
-        period_number => 'SUB_PERIOD_NUMBER',
+        period_number => 'SUB_PERIOD_NUMBER', 
     );
 
     # Only allow max of 2 digits after comma as we need to int ( $amount * 100 ) for Ogone
@@ -147,14 +144,9 @@ sub submit {
     $self->{_content}->{operation}  ||= 'RES' if $self->{_content}->{action} =~ m/authorization only/;
     $self->{_content}->{operation}  ||= 'SAL' if $self->{_content}->{action} =~ m/normal authorization/;
     $self->{_content}->{operation}  ||= 'SAS' if $self->{_content}->{action} =~ m/post authorization/;
-    #$self->{_content}->{operation}  ||= 'SAS' if $self->{_content}->{action} =~ m/recurrent authorization/;
 
     # Default ECI is SSL e-commerce (7) or Recurring with e-commerce (9) if subscription_id exists
     $self->{_content}->{eci}        ||= $self->{_content}->{subscription_id} ? 9 : 7;
-
-    # Set SUB_AMOUNT instead of amount if we request anything with a subscription_id
-    #$self->{_content}->{SUB_AMOUNT} ||= $self->{_content}->{amount} if $self->{_content}->{action} =~ m/recurrent authorization/;
-    #$self->{_content}->{SUB_ORDERID} ||= $self->{_content}->{invoice_number} if $self->{_content}->{action} =~ m/recurrent authorization/;
 
     # Remap the fields to their Ogone-API counterparts ie: cvc => CVC
     $self->remap_fields(%ogone_api_args);
@@ -165,7 +157,7 @@ sub submit {
     my @args_basic  = (qw/login password PSPID action/);
     my @args_ccard  = (qw/card_number expiration cvc/);
     my @args_alias  = (qw/alias cvc/);
-    my @args_recur  = (@args_basic, qw/subscription_id subscription_orderid invoice_number amount currency startdate enddate period_unit period_moment period_number/), 
+    my @args_recur  = (@args_basic, qw/name subscription_id subscription_orderid invoice_number amount currency startdate enddate period_unit period_moment period_number/, $self->{_content}->{card_numer} ? @args_ccard : @args_alias ), 
     my @args_new    = (@args_basic, qw/invoice_number amount currency/, $self->{_content}->{card_number} ? @args_ccard : @args_alias);
     my @args_post   = (@args_basic, qw/invoice_number/);
     my @query       = (@args_basic, qw/invoice_number/);
@@ -208,10 +200,13 @@ sub submit {
     # Ogone accepts the amount as 100 fold in integer form.
     $http_req_args{amount} = int(100 * $http_req_args{amount}) if exists $http_req_args{amount};
 
-    # XXX: FIXME: Switch amount for SUB_AMOUNT if there exits a subscroption_id key
-    $http_req_args{SUB_AMOUNT} = delete $http_req_args{amount} if $self->{_content}->{action} =~ m/recurrent authorization/;
-    $http_req_args{SUB_ORDERID} = $http_req_args{orderID} if $self->{_content}->{action} =~ m/recurrent authorization/;
-   
+    # Map normal fields to their SUB_ counterparts when recurrent authorization is used
+    if($self->{_content}->{action} =~ m/recurrent authorization/) {
+        $http_req_args{SUB_COMMENT} = $http_req_args{COM} if exists $http_req_args{COM};
+        $http_req_args{SUB_AMOUNT} = $http_req_args{amount};
+        $http_req_args{SUB_ORDERID} = $http_req_args{orderID};
+    }
+
     # Calculate sha1 by default, but has to be enabled in the Ogone backend to have any effect
     my ($sha_type)  = ($self->{_content}->{sha_type} =~ m/^(1|256|512)$/);
 
@@ -219,7 +214,7 @@ sub submit {
     my $sha_hex = sub { my $type = shift; no strict; &{"sha".($type || 1)."_hex"}(@_); use strict; };
 
     # Algo: make a list of "KEY=value$passphrase" sort alphabetically
-    my $signature =  join('',
+    my $signature = join('',
                          sort map { uc($_) . "=" . $http_req_args{$_} . ($self->{_content}{sha_key} || '') }
                          keys %http_req_args);
 
@@ -258,8 +253,7 @@ sub submit {
     # Store the result xml for later inspection
     $self->result_xml($xml);
 
-    # XXX: FIXME
-    #croak 'Ogone refused SHA digest' if $xml->{NCERRORPLUS} =~ m#^unknown order/1/s#;
+    croak 'Ogone refused SHA digest' if $xml->{NCERRORPLUS} =~ m#^unknown order/1/s#;
 
     # Call is_success() with either a true or false value, indicating if the transaction was successful or not.
     if ( $response_code =~ m/^200/ ) {
@@ -383,6 +377,8 @@ Laser, Privilège, Solo, MaestroUK, UATP
 
 =item * allows creation of VISA Alias mitigating the need to store them temporary (RES -> SAL)
 
+=item * allows creation of Recurrent VISA bills (Subscriptions)
+
 =item * close coupling to native API, easy to crossreference
 
 =item * allows Ogone's native operations: RES, REN, DEL, DES, SAL, SAS, RFD, RFS
@@ -479,6 +475,17 @@ C<action>, C<alias>, C<win3ds>.
         http_accept => 'HTTP_ACCEPT',
         http_user_agent => 'HTTP_USER_AGENT',
 
+        # recurrent fields
+        subscription_id => 'SUBSCRIPTION_ID',
+        subscription_orderid => 'SUB_ORDERID',
+        subscription_status => 'SUBSCRIPTION_STATUS',
+        startdate => 'SUB_STARTDATE',
+        enddate => 'SUB_ENDDATE',
+        status => 'SUB_STATUS',
+        period_unit => 'SUB_PERIOD_UNIT', # 'd', 'ww', 'm' (yes two 'w's) for resp daily weekly monthly
+        period_moment => 'SUB_PERIOD_MOMENT', # Integer, the moment in time on which the payment is (0-7 when period_unit is ww, 1-31 for d, 1-12 for m?)
+        period_number => 'SUB_PERIOD_NUMBER', 
+
 =head3 content() required parameters
 
 Depending on what action you are triggering a number of parameters are required. You can use the following pseudo perl
@@ -487,6 +494,7 @@ code as a reference to what exactly is required depending on the parameters.
     my @args_basic  = qw/login password PSPID action/;
     my @args_ccard  = qw/card_number expiration cvc/;
     my @args_alias  = qw/alias cvc/;
+    my @args_recur  = (@args_basic, qw/name subscription_id subscription_orderid invoice_number amount currency startdate enddate period_unit period_moment period_number/, has_cc_number() ? @args_ccard : @args_alias ), 
     my @args_new    = @args_basic, qw/invoice_number amount currency/, has_cc_number() ? @args_ccard : @args_alias;
     my @args_post   = @args_basic, qw/invoice_number/;
     my @query       = @args_basic, qw/invoice_number/;
@@ -529,12 +537,36 @@ code as a reference to what exactly is required depending on the parameters.
 
     my $res = new Business::OnlinePayment('Ogone',%auth);
 
-    $res->content(alias => 'wilma flinstone', cvc => 123, ...);
+    $res->content(alias => 'wilma_flinstone', cvc => 123, ...);
     $res->submit();
 
     if ( $res->is_success() ) {
         $dbh->do('insert into tx_status_log (id,status) values (?,?)',undef,$id,"RES OK");
     };
+
+=head3 example with B<recurrent> transaction using an alias
+
+    my $res = new Business::OnlinePayment('Ogone',%auth);
+    
+    $res->content(  action => 'recurrent authorization',
+                    alias => 'wilma_finstone',
+                    name => 'Wilma Flinstone', 
+                    cvc => '423',
+                    amount => '42',
+                    description => "monthly subscription to bedrock magazine",
+                    subscription_id => 12312312
+                    invoice_number => 9123,
+                    subscription_orderid => 123112,
+                    startdate => '2012-01-01',
+                    enddate => '2013-01-01',
+                    status => 1,
+                    period_unit => 'm',
+                    period_moment => 1,
+                    period_number => 1,
+                    ... );
+
+    $res->submit();
+);
 
 
 =head3 Optional parameters 
@@ -640,8 +672,6 @@ code as a reference to what exactly is required depending on the parameters.
 =item * Parse 3d-secure HTML 
 
 =item * use SHA1 passwd hashing see: L<https://secure.ogone.com/ncol/test/hash_pswd.aspi>
-
-=item * test and implement visa aliases
 
 =back
 

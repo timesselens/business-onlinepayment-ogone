@@ -8,6 +8,10 @@ use Data::Dumper;
 # setup from ENV
 #########################################################################################################
 
+$ENV{OGONE_PSWD} ||= '7n1tt3st';
+$ENV{OGONE_PSPID} ||= 'perlunit';
+$ENV{OGONE_USERID} ||= 'perltest';
+
 bail_on_fail; 
     ok($ENV{OGONE_USERID}, "test can only proceed with environment OGONE_USERID set");
 bail_on_fail; 
@@ -31,7 +35,7 @@ my %base_args = (
     expiration  => '12/15',
     country => 'BE',
     address => 'Nieuwstraat 32',
-    sha_key => '___testing_123_passphrase___',
+    sha_key => 'xxxtestingx123xpassphrasexxx',
     sha_type => 512,
     zip => 1000
 );

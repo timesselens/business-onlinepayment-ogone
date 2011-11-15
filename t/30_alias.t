@@ -1,9 +1,14 @@
+#!/usr/bin/perl
 use strict;
 use warnings;
 use Test::Most;
 use Data::Dumper;
 use Business::OnlinePayment;
   
+$ENV{OGONE_PSWD} ||= '7n1tt3st';
+$ENV{OGONE_PSPID} ||= 'perlunit';
+$ENV{OGONE_USERID} ||= 'perltest';
+
 #########################################################################################################
 # setup
 #########################################################################################################
@@ -26,7 +31,7 @@ my %base_args = (
     expiration  => '12/15',
     name => 'Alias Customer 2',
     alias => 'customer_2',
-    sha_key => '___testing_123_passphrase___',
+    sha_key => 'xxxtestingx123xpassphrasexxx',
     sha_type => 512,
 );
 
@@ -39,7 +44,7 @@ my %alias_args = (
     invoice_number => time + 1, # make sure both invoice_numbers (base,alias) differ
     amount      => '10',
     alias => 'customer_2',
-    sha_key => '___testing_123_passphrase___',
+    sha_key => 'xxxtestingx123xpassphrasexxx',
     sha_type => 512,
 );
 
