@@ -10,7 +10,7 @@ use MIME::Base64;
 
 # ABSTRACT: Online payment processing via Ogone
 our $VERSION = 0.2;
-our $API_VERSION = 4.9
+our $API_VERSION = 4.9;
 
 # Ogone config defaults and info ######################################################################################
 
