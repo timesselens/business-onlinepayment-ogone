@@ -69,6 +69,8 @@ Laser, Privilège, Solo, MaestroUK, UATP
 
 =item * allows creation of VISA Alias mitigating the need to store them temporary (RES -> SAL)
 
+=item * allows creation of Recurrent VISA bills (Subscriptions)
+
 =item * close coupling to native API, easy to crossreference
 
 =item * allows Ogone's native operations: RES, REN, DEL, DES, SAL, SAS, RFD, RFS
@@ -165,6 +167,17 @@ C<action>, C<alias>, C<win3ds>.
         http_accept => 'HTTP_ACCEPT',
         http_user_agent => 'HTTP_USER_AGENT',
 
+        # recurrent fields
+        subscription_id => 'SUBSCRIPTION_ID',
+        subscription_orderid => 'SUB_ORDERID',
+        subscription_status => 'SUBSCRIPTION_STATUS',
+        startdate => 'SUB_STARTDATE',
+        enddate => 'SUB_ENDDATE',
+        status => 'SUB_STATUS',
+        period_unit => 'SUB_PERIOD_UNIT', # 'd', 'ww', 'm' (yes two 'w's) for resp daily weekly monthly
+        period_moment => 'SUB_PERIOD_MOMENT', # Integer, the moment in time on which the payment is (0-7 when period_unit is ww, 1-31 for d, 1-12 for m?)
+        period_number => 'SUB_PERIOD_NUMBER', 
+
 =head3 content() required parameters
 
 Depending on what action you are triggering a number of parameters are required. You can use the following pseudo perl
@@ -173,6 +186,7 @@ code as a reference to what exactly is required depending on the parameters.
     my @args_basic  = qw/login password PSPID action/;
     my @args_ccard  = qw/card_number expiration cvc/;
     my @args_alias  = qw/alias cvc/;
+    my @args_recur  = (@args_basic, qw/name subscription_id subscription_orderid invoice_number amount currency startdate enddate period_unit period_moment period_number/, has_cc_number() ? @args_ccard : @args_alias ), 
     my @args_new    = @args_basic, qw/invoice_number amount currency/, has_cc_number() ? @args_ccard : @args_alias;
     my @args_post   = @args_basic, qw/invoice_number/;
     my @query       = @args_basic, qw/invoice_number/;
@@ -215,12 +229,36 @@ code as a reference to what exactly is required depending on the parameters.
 
     my $res = new Business::OnlinePayment('Ogone',%auth);
 
-    $res->content(alias => 'wilma flinstone', cvc => 123, ...);
+    $res->content(alias => 'wilma_flinstone', cvc => 123, ...);
     $res->submit();
 
     if ( $res->is_success() ) {
         $dbh->do('insert into tx_status_log (id,status) values (?,?)',undef,$id,"RES OK");
     };
+
+=head3 example with B<recurrent> transaction using an alias
+
+    my $res = new Business::OnlinePayment('Ogone',%auth);
+    
+    $res->content(  action => 'recurrent authorization',
+                    alias => 'wilma_finstone',
+                    name => 'Wilma Flinstone', 
+                    cvc => '423',
+                    amount => '42',
+                    description => "monthly subscription to bedrock magazine",
+                    subscription_id => 12312312
+                    invoice_number => 9123,
+                    subscription_orderid => 123112,
+                    startdate => '2012-01-01',
+                    enddate => '2013-01-01',
+                    status => 1,
+                    period_unit => 'm',
+                    period_moment => 1,
+                    period_number => 1,
+                    ... );
+
+    $res->submit();
+);
 
 
 =head3 Optional parameters 
@@ -327,8 +365,6 @@ code as a reference to what exactly is required depending on the parameters.
 
 =item * use SHA1 passwd hashing see: L<https://secure.ogone.com/ncol/test/hash_pswd.aspi>
 
-=item * test and implement visa aliases
-
 =back
 
 =head1 TESTING
@@ -336,9 +372,9 @@ code as a reference to what exactly is required depending on the parameters.
 To test this module you will need to set your credentials in the environment. Put the following in a file in your hoe directory e.g. F<~/.ogone>
 The password is not the same as the PSPID password, you will need to enter the API users' password.
 
-    OGONE_PSPID=bob
-    OGONE_USERID=bob_api
-    OGONE_PSWD=foobar
+    export OGONE_PSPID=bob
+    export OGONE_USERID=bob_api
+    export OGONE_PSWD=foobar
     
 Limit access to the F<~/.ogone> file
 
@@ -462,6 +498,7 @@ L<Ogone Prod Backend|https://secure.ogone.com/ncol/prod/frame_ogone.asp> using t
 =item SHA-IN Pass phrase: same as C<$sha_key>
 
 =back
+
 
 
 
