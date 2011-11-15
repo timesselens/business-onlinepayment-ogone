@@ -1,1 +1,4 @@
 .*.*
+.build
+Business-OnlinePayment-Ogone-*
+Business-OnlinePayment-Ogone-*.tar.gz
