@@ -206,6 +206,9 @@ sub submit {
         $http_req_args{SUB_ORDERID} = $http_req_args{orderID};
     }
 
+    # PSPID might be entered in lowercase (as per old documentation)
+    $http_req_args{PSPID} = $self->{_content}{pspid} if defined $self->{_content}{pspid};
+
     # Calculate sha1 by default, but has to be enabled in the Ogone backend to have any effect
     my ($sha_type)  = ($self->{_content}->{sha_type} =~ m/^(1|256|512)$/);
 
