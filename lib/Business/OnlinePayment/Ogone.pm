@@ -133,12 +133,11 @@ sub submit {
     croak 'max 2 digits after comma (or dot) allowed' if $self->{_content}->{amount} =~ m/[\,\.]\d{3}/;
 
     # Ogone has multiple users per login, defaults to login
-    $self->{_content}->{PSPID}      ||= $self->{PSPID} || $self->{login} || $self->{_content}->{login};
+    $self->{_content}->{PSPID}      ||= $self->{pspid} || $self->{PSPID} || $self->{login} || $self->{_content}->{login};
 
     # Login information, default to constructor values
     $self->{_content}->{login}      ||= $self->{login};
     $self->{_content}->{password}   ||= $self->{password};
-    $self->{_content}->{PSPID}      ||= $self->{PSPID};
 
     # Default Operation request for authorization (RES) for authorization only, (capture full and close) SAS for post authorization
     $self->{_content}->{operation}  ||= 'RES' if $self->{_content}->{action} =~ m/authorization only/;
