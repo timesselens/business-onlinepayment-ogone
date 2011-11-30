@@ -3,7 +3,6 @@ use parent 'Business::OnlinePayment::HTTPS';
 use strict; # keep Perl::Critic happy over common::sense;
 use common::sense;
 use Carp;
-use Data::Dumper;
 use XML::Simple qw/:strict/;
 use Digest::SHA qw/sha1_hex sha256_hex sha512_hex/;
 use MIME::Base64;
