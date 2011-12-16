@@ -196,7 +196,8 @@ sub submit {
                         map { $ogone_api_args{$_} || $_ } @all_http_args;
 
     # Ogone accepts the amount as 100 fold in integer form.
-    $http_req_args{amount} = int(100 * $http_req_args{amount}) if exists $http_req_args{amount};
+    # # Adding 0.5 to amount to prevent "rounding" errors, see http://stackoverflow.com/a/1274692 or perldoc -q round
+    $http_req_args{amount} = int(100 * $http_req_args{amount} + 0.5) if exists $http_req_args{amount};
 
     # Map normal fields to their SUB_ counterparts when recurrent authorization is used
     if($self->{_content}->{action} =~ m/recurrent authorization/) {
