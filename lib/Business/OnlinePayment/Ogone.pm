@@ -6,6 +6,7 @@ use Carp;
 use XML::Simple qw/:strict/;
 use Digest::SHA qw/sha1_hex sha256_hex sha512_hex/;
 use MIME::Base64;
+use Encode;
 
 # ABSTRACT: Online payment processing via Ogone
 our $VERSION = 0.2;
@@ -219,6 +220,10 @@ sub submit {
     my $signature = join('',
                          sort map { uc($_) . "=" . $http_req_args{$_} . ($self->{_content}{sha_key} || '') }
                          keys %http_req_args);
+
+    # Hotfix
+    $signature = encode("UTF-8", $signature);
+    utf8::upgrade($signature);
 
     $http_req_args{SHASign} = $sha_hex->($sha_type,$signature);
 
