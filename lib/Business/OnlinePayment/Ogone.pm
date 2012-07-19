@@ -246,6 +246,9 @@ sub submit {
     # Construct the path to be used in https_post
     $self->{path} = '/ncol/'.$uri_dir.'/'.$uri_file;
 
+    # Hotfix Matthias Dietrich: Ogone's SSL implementation is buggy!
+    $Net::SSLeay::ssl_version = 3;
+
     # Save the http args for later inspection
     $self->http_args(\%http_req_args);
 
