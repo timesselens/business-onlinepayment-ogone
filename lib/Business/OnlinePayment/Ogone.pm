@@ -151,11 +151,11 @@ sub submit {
     $self->remap_fields(%ogone_api_args);
 
     croak "no sha_key provided" if $self->{_content}->{sha_type} && ! $self->{_content}->{sha_key};
-        
+
     # These fields are required by Businiess::OnlinePayment::Ogone
     my @args_basic  = (qw/login password PSPID action/);
     my @args_ccard  = (qw/card_number expiration cvc/);
-    my @args_alias  = (qw/alias cvc/);
+    my @args_alias  = (qw/alias/);
     my @args_recur  = (@args_basic, qw/name subscription_id subscription_orderid invoice_number amount currency startdate enddate period_unit period_moment period_number/, $self->{_content}->{card_numer} ? @args_ccard : @args_alias ), 
     my @args_new    = (@args_basic, qw/invoice_number amount currency/, $self->{_content}->{card_number} ? @args_ccard : @args_alias);
     my @args_post   = (@args_basic, qw/invoice_number/);
@@ -179,7 +179,7 @@ sub submit {
 
     # Enforce the field requirements by calling parent
     my @undefs = grep { ! defined $self->{_content}->{$_} } @args;
-    
+
     croak "missing required args: ". join(',',@undefs) if scalar @undefs;
 
     # Your module should check to see if the  require_avs() function returns true, and turn on AVS checking if it does.
@@ -251,6 +251,8 @@ sub submit {
 
     # Save the http args for later inspection
     $self->http_args(\%http_req_args);
+
+    warn $http_req_args{ECI};
 
     # Submit the transaction to the processor and collect a response.
     my ($page, $response_code, %reply_headers) = $self->https_post(%http_req_args);
