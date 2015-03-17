@@ -268,6 +268,7 @@ sub submit {
         if ( $xml->{STATUS} == 5  ) { $self->is_success(1) } # authorization accepted
         if ( $xml->{STATUS} == 9  ) { $self->is_success(1) } # payment accepted
         if ( $xml->{STATUS} == 91 ) { $self->is_success(1) } # partial payment accepted
+        if ( $xml->{STATUS} == 61 ) { $self->is_success(1) } # Author. deletion waiting
         if ( $xml->{STATUS} == 2 ) { $self->failure_status('refused') } # authorization refused
         if ( $xml->{STATUS} == 0 && $xml->{NCERROR} eq '50001134' ) { $self->failure_status('declined') } # 3d secure wrong identification
         if ( $xml->{STATUS} == 0 && $xml->{NCERRORPLUS} =~ m/status \(91\)/ ) { 
