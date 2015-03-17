@@ -283,8 +283,9 @@ sub submit {
     if ( $xml->{STATUS} == 46 ) {
         my $html = decode_base64($xml->{HTML_ANSWER});
            # remove sillyness
-           $html =~ s///g; 
-           $html =~ s/ //g;
+           $html =~ s/
+//g; 
+           $html =~ s///g;
 
         # TODO: parse
         #open my $fh, '>', '/tmp/ogone_'.$self->{_content}->{win3ds}.'.html';
@@ -510,14 +511,14 @@ code as a reference to what exactly is required depending on the parameters.
 
 =head2 content() examples
 
-=head3 example B<authorize only> request: requests a claim on an amount of money [RES] (and creates an alias)
+=head3 example B<authorization only> request: requests a claim on an amount of money [RES] (and creates an alias)
 
     my %auth = ( pspid => 'fred', login => 'bedrock_api', password => 'fl1nst0ne' );
 
     my $id = $session->get('orderid');
     my $res = new Business::OnlinePayment('Ogone', %auth);
 
-    $res->content( invoice_number => $id, action => 'authorize only', alias => 'wilma flinstone',  ... );
+    $res->content( invoice_number => $id, action => 'authorization only', alias => 'wilma flinstone',  ... );
     $res->submit();
 
     if ( $res->is_success() ) {
@@ -588,18 +589,18 @@ code as a reference to what exactly is required depending on the parameters.
 
 =head1 STATE DIAGRAMS
 
-=head2 Authorize Only
+=head2 Authorization Only
 
          Client                                 Ogone HTTPS      Bank
       ------------------------------------------------------------------------
 
-      1    +---|Authorize Only| orderID=1----------->. [RES]        
+      1    +---|Authorization Only| orderID=1----------->. [RES]        
                                                      |              
       2    *<---STATUS=5 ----------------------------'                    
 
 =over 4
 
-=item B<1> submit authorize only request usin RES operation with orderID=1. This will reserve the money on the credit card.
+=item B<1> submit authorization only request usin RES operation with orderID=1. This will reserve the money on the credit card.
 
 =item B<2> STATUS=5 indicates the authorization succeeded.
 
