@@ -99,8 +99,8 @@ $tx->content(override_base_args_with(cvc => 'abc')); eval { $tx->submit() }; #di
     is($tx->is_success, 0, "must NOT be successful")
         or diag explain { req => $tx->http_args, res => $tx->result_xml};
     like($tx->error_message, qr/./, "error message must be set"); # testing wrong cvc seems impossible
-    # unlike($tx->error_message, qr/Some of the data entered is incorrect/, "error message must not be like 'Some of the data entered is incorrent'");
-    like($tx->result_code, qr/50001111/, "result_code should return 50001111");
+    like($tx->error_message, qr/The CVC code is mandatory for this type of card/, "error message must be like: 'The CVC code is mandatory for this type of card'");
+    like($tx->result_code, qr/50001090/, "result_code should return 50001090");
 
 
 
