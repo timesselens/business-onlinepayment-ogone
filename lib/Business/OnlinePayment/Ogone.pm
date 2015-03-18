@@ -252,8 +252,6 @@ sub submit {
     # Save the http args for later inspection
     $self->http_args(\%http_req_args);
 
-    warn $http_req_args{ECI};
-
     # Submit the transaction to the processor and collect a response.
     my ($page, $response_code, %reply_headers) = $self->https_post(%http_req_args);
 
